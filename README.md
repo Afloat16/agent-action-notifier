@@ -38,8 +38,8 @@ See the [integration contract](docs/integrations.md).
 
 ## Try it safely, without email or credentials
 
-Download `agent-action-notifier.pyz` from this repository's GitHub release, or
-build it from source using Python alone:
+If a downloadable `agent-action-notifier.pyz` is available in this repository's
+GitHub Releases, use it; otherwise build from source using Python alone:
 
 ```sh
 git clone https://github.com/Afloat16/agent-action-notifier.git

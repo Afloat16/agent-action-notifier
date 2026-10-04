@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 from agent_action_notifier.models import Event, parse_channels
 from agent_action_notifier.privacy import ValidationError, redact_text, safe_action_url
@@ -329,29 +330,51 @@ class WorkerTests(unittest.TestCase):
         self.assertIn("transport_internal_error", rendered)
 
     def test_live_send_renews_lease_without_concurrent_duplicate(self):
-        self.store.emit(event(), ("email",))
+        self.store.emit(event(), ("email",), now=100)
         entered = threading.Event()
         release = threading.Event()
+        renewed = threading.Event()
         result = []
+        current = {"now": 100.0}
+        original_renew = self.store.renew
+        unexpected_sends = []
+
+        def clock():
+            return current["now"]
+
+        def observe_renew(delivery_id, owner, now, lease_seconds):
+            accepted = original_renew(delivery_id, owner, now, lease_seconds)
+            if accepted and now >= 159:
+                renewed.set()
+            return accepted
 
         def slow_sender(*args):
             entered.set()
-            release.wait(2)
+            release.wait(10)
             return "smtp_accepted"
 
         def first_worker():
-            result.append(drain(self.store, sender=slow_sender, lease_seconds=0.15, heartbeat_interval=0.02))
+            result.append(drain(self.store, sender=slow_sender, clock=clock, heartbeat_interval=0.01))
 
-        thread = threading.Thread(target=first_worker)
-        thread.start()
-        self.assertTrue(entered.wait(2))
-        try:
-            time.sleep(0.25)
-            second = drain(self.store, sender=lambda *args: self.fail("concurrent duplicate sent"))
-            self.assertEqual(second["accepted"], 0)
-        finally:
-            release.set()
-            thread.join(3)
+        with patch.object(self.store, "renew", side_effect=observe_renew):
+            thread = threading.Thread(target=first_worker)
+            thread.start()
+            try:
+                self.assertTrue(entered.wait(10))
+                # Move close to the original 160 deadline, wait for a real
+                # renewal transaction, then pass the original deadline. This
+                # tests a live heartbeat without a 150ms filesystem/scheduling
+                # assumption that fails on slower macOS runners.
+                current["now"] = 159.0
+                self.assertTrue(renewed.wait(10), "live worker did not renew its lease")
+                current["now"] = 161.0
+                second = drain(self.store, clock=clock,
+                               sender=lambda *args: unexpected_sends.append(args) or "smtp_accepted")
+                self.assertEqual(second["accepted"], 0)
+                self.assertEqual(unexpected_sends, [])
+            finally:
+                release.set()
+                thread.join(10)
         self.assertFalse(thread.is_alive())
         self.assertEqual(result[0]["accepted"], 1)
 

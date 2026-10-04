@@ -15,7 +15,7 @@ Python 3.10+ · MIT · 无第三方运行时依赖 · 0.1.0
 
 ## 无账号、无邮件的体验
 
-下载 GitHub Release 的 agent-action-notifier.pyz，或从源码构建：
+如果 GitHub Releases 中已有 agent-action-notifier.pyz，可直接下载；否则从源码构建：
 
 ```sh
 git clone https://github.com/Afloat16/agent-action-notifier.git
