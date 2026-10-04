@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "event_id": "example:review-needed",
+  "task_id": "example",
+  "type": "human_input_required",
+  "request_id": "review-1",
+  "status": "waiting",
+  "independent_work": false,
+  "summary": "Review the proposed action in the original workflow."
+}

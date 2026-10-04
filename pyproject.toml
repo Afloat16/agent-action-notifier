@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-action-notifier"
+version = "0.1.0"
+description = "Durable notification-only human-input alerts for agent workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Afloat16"}]
+dependencies = []
+classifiers = ["Programming Language :: Python :: 3", "Operating System :: OS Independent"]
+
+[project.scripts]
+aan = "agent_action_notifier.cli:main"
+
+[project.urls]
+Repository = "https://github.com/Afloat16/agent-action-notifier"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "event_id": "example:completed",
+  "task_id": "example",
+  "type": "task_status",
+  "status": "completed"
+}

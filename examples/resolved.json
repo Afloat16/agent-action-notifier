@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "event_id": "example:review-resolved",
+  "task_id": "example",
+  "type": "request_resolved",
+  "request_id": "review-1",
+  "outcome": "handled"
+}
