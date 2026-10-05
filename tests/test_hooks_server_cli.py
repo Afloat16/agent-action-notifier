@@ -151,6 +151,28 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(snapshot["tasks"][0]["status"], "waiting")
 
+    def test_opt_in_email_action_uses_real_authenticated_loopback_ingestion(self):
+        server = make_server(self.store, self.token, ("email", "desktop"), (), port=0, include_action=True)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+            payload = self.event(action={"kind": "question", "steps": ["Choose a format."], "reply_prompt": "PDF or DOCX?"})
+            connection.request("POST", "/v1/events", body=json.dumps(payload).encode(), headers={
+                "Authorization": "Bearer " + self.token, "Content-Type": "application/json"})
+            response = connection.getresponse()
+            self.assertEqual(response.status, 202)
+            self.assertEqual(json.loads(response.read())["queued"], 2)
+            connection.close()
+            for owner in ["email-worker", "desktop-worker"]:
+                row = self.store.claim(owner, float("inf"))
+                self.assertEqual("Choose a format." in row["body"], row["channel"] == "email")
+                self.assertEqual(bool(row["reply_reference"]), row["channel"] == "email")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
     def test_bearer_is_required_for_reads_and_writes(self):
         for method, path in [("GET", "/v1/status"), ("POST", "/v1/events")]:
             self.assertEqual(self.request(method, path, self.event(), {"Authorization": "Bearer wrong"})[0], 401)

@@ -3,7 +3,11 @@
 `aan` is a notification and local request-state utility. It observes explicitly
 supplied events; it does not automatically connect to ChatGPT, discover agents,
 read conversation/session files, approve permissions, answer questions, or resume
-upstream work. A notification tells a person to return to the original agent UI.
+upstream work. A reviewed canonical action can provide full email steps, official
+links, and ordinary reply prompts. There is no blanket requirement to return to
+GPT; mandatory host confirmation surfaces still apply. Imported `.eml` replies
+remain unverified pending input. See [email-first setup](email-first.md)
+([简体中文](email-first.zh-CN.md)) for the trusted-host boundary and runnable steps.
 
 ## Documentation and version snapshot
 
@@ -159,8 +163,8 @@ authentication, completion, or quota-status signals.
 
 | Adapter input | Canonical event | Meaning |
 | --- | --- | --- |
-| Either agent: `PermissionRequest` | `human_input_required`, `waiting` | Return to the agent for its permission flow |
-| Claude: `PreToolUse`, `tool_name=AskUserQuestion` | `human_input_required`, `waiting` | Return to the agent to answer |
+| Either agent: `PermissionRequest` | `human_input_required`, `waiting` | Use the host's required permission flow |
+| Claude: `PreToolUse`, `tool_name=AskUserQuestion` | `human_input_required`, `waiting` | Answer through the host's supported input flow |
 | Either agent: `Stop` | `task_status`, `unknown`, or existing `waiting`/`blocked` | A turn ended; task completion is unconfirmed |
 | Other well-formed hook events | Ignored | Not supported by these adapters |
 
@@ -171,6 +175,11 @@ when available, supports duplicate suppression. Otherwise the adapter hashes
 the event inputs into **30-second time buckets**. Repeats across a bucket boundary
 may alert again; identical simultaneous requests may collapse. This is bounded
 noise suppression, not an authoritative inventory of all outstanding requests.
+
+The supplied hooks do not generate structured actions or collect email answers.
+To send full reviewed steps/questions, a host must emit canonical `action` data
+deliberately. `--include-action` does not extract private tool inputs or create
+an upstream answer channel from a generic hook.
 
 Generic hooks do not give this utility a complete upstream resolution feed.
 Neither `Stop`, a successful unrelated tool call, time passing, nor a local alert
@@ -229,7 +238,7 @@ The version-1 contract is:
   the producer knows useful independent work can continue.
 - `request_resolved` requires the same `task_id`/`request_id` and an `outcome` of
   `handled`, `cancelled`, or `superseded`. Do not include summary, action URL,
-  status, or independent-work data in resolution events.
+  action, status, or independent-work data in resolution events.
 - `task_status` requires `status`: `running`, `waiting`, `blocked`, `completed`,
   `failed`, `cancelled`, or `unknown`. It has no `request_id` or `outcome`.
 - `summary` is optional, at most 400 characters. Notifications omit it by default;
@@ -239,6 +248,24 @@ The version-1 contract is:
   `--action-host` or `AAN_ACTION_HOSTS`; it cannot have userinfo, a query,
   fragment, or a nonstandard port. Use an ordinary authenticated review page,
   never a secret-bearing URL. Subdomains are separate hosts.
+- `action` is optional and valid only on `human_input_required`. Its `kind` is
+  `login`, `question`, `review`, `external_action`, or `host_confirmation`;
+  `steps` contains 1–12 nonempty strings of at most 500 characters each.
+  Optional `reply_prompt` and `completion_hint` strings are at most 400
+  characters each. `login` requires a validated top-level `action_url`.
+  The complete event remains limited to 16 KiB. Fields are conservatively
+  redacted before storage; links must use `action_url`, not action text.
+  `--include-action`/`AAN_INCLUDE_ACTION=1` includes reviewed action text only
+  in email, and only when chosen by the producer at enqueue time.
+
+For a reply-enabled action, configure `AAN_SMTP_REPLY_TO` in the email worker.
+The email supplies a request reference, revision, first-line `AAN-REPLY` marker,
+and correlation headers. `aan replies ingest --file message.eml` parses the
+actual local reply; `aan replies list` exposes imported **unverified** input.
+Neither command polls the inbox, resolves the request, authenticates an owner,
+approves an action, or resumes the host. Only a trusted host can verify owner
+intent and apply its original confirmation policy. Full setup and official
+sources are in the [email-first guide](email-first.md).
 
 Example separate status event:
 
@@ -347,7 +374,10 @@ the authorized host; the notifier only needs its minimized event.
 ```
 
 Do not forward approval reasons, shell commands, question contents, requested
-schemas, authentication messages, or arbitrary upstream URLs by default. Do not
+schemas, authentication messages, or arbitrary upstream URLs by default. A host can
+deliberately add separately reviewed non-sensitive `action` steps and ordinary
+questions for email; it must supply any official action URL safely and obtain
+authenticated owner intent before processing a reply. Do not
 map every server request to human-input-required: some request host execution or
 authentication plumbing rather than a decision by a person.
 

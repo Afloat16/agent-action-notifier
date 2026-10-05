@@ -2,13 +2,14 @@
 
 **需要你参与时，及时收到通知，不必一直盯着智能体对话。**
 
-[English](README.md) · [接入说明](docs/integrations.md) · [桌面限制](docs/desktop.md) · [安全说明](SECURITY.md)
+[English](README.md) · [邮件优先配置](docs/email-first.zh-CN.md) · [接入说明](docs/integrations.md) · [桌面限制](docs/desktop.md) · [安全说明](SECURITY.md)
 
-Python 3.10+ · MIT · 无第三方运行时依赖 · 0.1.0
+Python 3.10+ · MIT · 无第三方运行时依赖 · 0.2.0
 
 当智能体需要确认、授权、登录或回答问题时，它可能已经等待很久，而你以为工作仍在进行。
 本工具将工作流明确上报的事件保存到 SQLite，并通过邮件和本机桌面发送通知。
 待处理请求、发送失败、重试和过期状态都可检查。
+0.2.0 支持明确启用的邮件操作步骤、官方页面链接和普通问题；本地导入邮件回复时只记录为未经验证的待处理输入。
 
 通知不会替你授权、回答、登录或解除安全限制。需要授权的工作仍暂停；只有独立且已获授权的工作可以继续。
 它不能自动接入 ChatGPT，也不会读取会话文件、安装后台服务、配置邮箱或转发云端桌面通知到你的电脑。
@@ -64,11 +65,13 @@ Windows PowerShell 使用 $env:AAN_CHANNELS = 'email,desktop' 设置环境变量
 
 - AAN_SMTP_HOST、AAN_SMTP_PORT、AAN_SMTP_SECURITY（ssl 或 starttls）
 - AAN_SMTP_FROM、AAN_SMTP_TO（各一个普通邮箱地址）
+- 需要回复的操作邮件还须单独设置 AAN_SMTP_REPLY_TO（一个普通回复收件地址）
 - AAN_SMTP_USERNAME、AAN_SMTP_PASSWORD（安全地提供，不放命令参数、事件或仓库）
 
 参考 .env.example 和服务商官方配置。工具不会自动读取 .env。
 只允许验证证书的 TLS，不会降级成明文。支持免认证的 TLS 中继，但用户名和密码必须同时省略。
 创建应用密码、OAuth 权限或系统通知权限仍需你自己处理。
+工具不会创建回复邮箱，也不会读取或轮询收件箱。
 
 Linux 需要已有 notify-send 和桌面通知会话；macOS 使用 osascript，但权限或专注模式可能阻止显示。
 Windows 使用系统已有的 PowerShell 5.1/.NET Windows Forms，在已登录的交互桌面请求通知区域气泡。
@@ -90,6 +93,25 @@ python .\agent-action-notifier.pyz worker --watch
 产生事件的另一个终端也需继承相同数据库和渠道设置。邮件还需安全提供 SMTP 配置。
 这不会安装服务或修改执行策略。
 
+## 邮件优先的人工交互
+
+生产方可在 human_input_required 事件中加入经过审阅的 action：完整步骤、可通过邮件回答的普通问题，
+以及安全的官方登录或操作页面。生产方用 --include-action 或 AAN_INCLUDE_ACTION=1 明确启用后，
+结构化操作正文仅发送到邮件。此选项不会把操作正文显示在桌面和终端通知中；默认所有通知都不发送 action 文本。
+
+```sh
+# 仅终端和本地状态，不发送邮件或桌面通知。
+aan --db ./email-first-demo.db --channels stdout --include-action emit --file examples/email-action.json
+aan --db ./email-first-demo.db status
+```
+
+实际邮件需要先配置 SMTP 和回复邮箱，再运行发送进程，并以 --channels email --include-action 产生事件。
+[完整指南](docs/email-first.zh-CN.md)包含配置、官方登录链接，以及 aan replies ingest --file message.eml 和 aan replies list。
+
+普通回答可由支持此流程的已授权宿主通过邮件处理，无须每次返回 GPT。
+登录凭据只在官方网站输入；导入的回复是未经验证的待处理输入，不能授权、执行、解除请求或恢复智能体。
+宿主必须验证所有者的真实意图并遵守原确认策略。平台要求的确认表单或人工接管仍须在指定界面完成。
+
 ## 状态和接入边界
 
 - human_input_required：等待人工输入，status 为 waiting 或 blocked
@@ -110,6 +132,7 @@ python .\agent-action-notifier.pyz worker --watch
 
 通知默认只有散列任务编号和通用状态。摘要必须用 --include-summary 或 AAN_INCLUDE_SUMMARY=1 明确启用；
 启发式脱敏不能识别所有秘密，所以不要传入私密问题、命令、日志或密码。
+经过审阅的普通问题可放在单独启用的 action 中；摘要、操作正文和导入的回复会保守脱敏后保存。
 可选操作链接必须是你明确允许域名上的普通 HTTPS 审阅页面，不得带查询参数、片段或凭据。
 
 发送为至少一次：外部接受后、本地记录前崩溃，可能重复。稳定 Message-ID 不保证恰好一次。

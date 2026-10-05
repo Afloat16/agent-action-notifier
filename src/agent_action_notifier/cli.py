@@ -10,6 +10,7 @@ from . import __version__
 from .hooks import ingest_hook
 from .models import Event, parse_channels
 from .privacy import ValidationError
+from .replies import MAX_REPLY_BYTES, Reply
 from .server import MAX_BODY, serve
 from .store import Store
 from .worker import drain
@@ -35,6 +36,15 @@ def read_json(path: str) -> object:
         raise ValidationError("invalid_json") from None
 
 
+def read_reply(path: str) -> Reply:
+    if path == "-":
+        data = sys.stdin.buffer.read(MAX_REPLY_BYTES + 1)
+    else:
+        with open(path, "rb") as file:
+            data = file.read(MAX_REPLY_BYTES + 1)
+    return Reply.parse(data)
+
+
 def output(payload: dict, stream=None):
     print(json.dumps(payload, ensure_ascii=True, sort_keys=True), file=stream or sys.stdout)
 
@@ -47,6 +57,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--action-host", action="append", default=[], help="exact allowed HTTPS review host; repeatable")
     parser.add_argument("--include-summary", action="store_true", default=os.environ.get("AAN_INCLUDE_SUMMARY") == "1",
                         help="opt in to heuristic-redacted summaries in notifications")
+    parser.add_argument("--include-action", action="store_true", default=os.environ.get("AAN_INCLUDE_ACTION") == "1",
+                        help="opt in to producer-reviewed instructions in email only")
     sub = parser.add_subparsers(dest="command", required=True)
     emit = sub.add_parser("emit", help="durably ingest a canonical JSON event")
     emit.add_argument("--file", default="-", help="JSON file or stdin (-)")
@@ -59,6 +71,12 @@ def build_parser() -> argparse.ArgumentParser:
     receiver.add_argument("--port", type=int, default=8765)
     hook = sub.add_parser("hook", help="enqueue supported vendor hooks; return no permission decision")
     hook.add_argument("source", choices=["codex", "claude"])
+    replies = sub.add_parser("replies", help="import/list unverified email input; never approve or resume")
+    reply_commands = replies.add_subparsers(dest="reply_command", required=True)
+    ingest = reply_commands.add_parser("ingest", help="import one RFC822 file into the unverified review inbox")
+    ingest.add_argument("--file", default="-", help=".eml file or stdin (-); no mailbox polling")
+    listing = reply_commands.add_parser("list", help="inspect up to 100 unverified notes")
+    listing.add_argument("--include-obsolete", action="store_true")
     sub.add_parser("demo", help="local synthetic workflow; no network or desktop notifications")
     return parser
 
@@ -101,7 +119,7 @@ def main(argv=None) -> int:
         store = Store(args.db)
         if args.command == "emit":
             event = Event.parse(read_json(args.file), hosts)
-            result = store.emit(event, channels, args.include_summary)
+            result = store.emit(event, channels, args.include_summary, include_action=args.include_action)
             if not args.queue_only:
                 result["delivery"] = drain(store)
             output(result)
@@ -112,6 +130,11 @@ def main(argv=None) -> int:
             output(result, sys.stderr)
         elif args.command == "status":
             output(store.snapshot())
+        elif args.command == "replies":
+            if args.reply_command == "ingest":
+                output(store.ingest_reply(read_reply(args.file)))
+            else:
+                output(store.list_replies(include_obsolete=args.include_obsolete))
         elif args.command == "retry-dead":
             output({"requeued": store.retry_dead()})
         elif args.command == "worker":
@@ -124,7 +147,8 @@ def main(argv=None) -> int:
                 time.sleep(1)
         elif args.command == "serve":
             token = os.environ.get("AAN_WEBHOOK_TOKEN", "")
-            serve(store, token, channels, hosts, args.include_summary, args.port)
+            serve(store, token, channels, hosts, args.include_summary, args.port,
+                  include_action=args.include_action)
     except KeyboardInterrupt:
         return 0
     except ValidationError as exc:

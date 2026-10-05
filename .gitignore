@@ -12,3 +12,5 @@ dist/
 *.db-wal
 *.sqlite*
 *.log
+*.eml
+*.mbox

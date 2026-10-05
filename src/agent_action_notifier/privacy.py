@@ -1,6 +1,7 @@
 """Conservative outbound minimization, not a general-purpose secret detector."""
 
 import hashlib
+import json
 import re
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -11,6 +12,11 @@ class ValidationError(ValueError):
 
 def reference(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
+
+
+def request_reference(task_id: str, request_id: str) -> str:
+    value = json.dumps([task_id, request_id], separators=(",", ":"))
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:24]
 
 
 def redact_text(value: str) -> str:

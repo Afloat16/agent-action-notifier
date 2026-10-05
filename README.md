@@ -2,10 +2,10 @@
 
 **Know when an agent needs you, without watching its conversation.**
 
-[简体中文](README.zh-CN.md) · [Agent integrations](docs/integrations.md) ·
+[简体中文](README.zh-CN.md) · [Email-first setup](docs/email-first.md) · [Agent integrations](docs/integrations.md) ·
 [Desktop limitations](docs/desktop.md) · [Security](SECURITY.md)
 
-Python 3.10+ · MIT · No third-party runtime dependencies · Version 0.1.0
+Python 3.10+ · MIT · No third-party runtime dependencies · Version 0.2.0
 
 An agent can spend minutes waiting for a permission, answer, login, or review
 while its owner assumes work is continuing. This small tool turns **explicit
@@ -29,6 +29,8 @@ independent, already-authorized work is continuing.
   `unknown` states; stale nonterminal reports are flagged
 - Short, notification-only Codex/Claude command-hook adapters
 - Generic notifications by default; summaries require explicit opt-in
+- Opt-in email action steps, safe official links, and ordinary reply prompts
+- Local `.eml` reply import as unverified input for a trusted host to review
 
 There is **no automatic ChatGPT attachment**, browser scraping, session-file
 reading, background-service installation, cloud tunnel, remote desktop forwarding,
@@ -118,6 +120,8 @@ app-password creation, OAuth grants, account permissions, and operating-system
 notification permissions remain your responsibility. Never give this tool a
 password in event JSON. A TLS relay may omit both username and password; setting
 either requires both nonempty. FROM/TO each accept one bare ASCII mailbox.
+Reply-enabled action emails also require a separately configured
+`AAN_SMTP_REPLY_TO` mailbox; this tool does not create that mailbox or read its inbox.
 
 Linux needs an existing `notify-send` plus a desktop notification session.
 macOS uses built-in `osascript`; notification permissions or Focus settings may
@@ -144,6 +148,33 @@ install a service, alter execution policy, or configure SMTP credentials.
 First test **with a harmless event and the actual inbox/desktop** before relying
 on delivery. Check spam filters and `aan status`. Do not treat transport acceptance
 as proof that a popup appeared, an email reached the inbox, or a human read it.
+
+## Email-first human input
+
+A reviewed canonical `human_input_required` event can include an `action` with
+numbered steps, an ordinary email-reply question, and a safe official login or
+action page. Enable `--include-action` or `AAN_INCLUDE_ACTION=1` in the producer
+to include that structured action **only in email**. This option leaves action
+text out of desktop/stdout notices; action text is omitted from all outbound
+notices by default.
+
+```sh
+# No email or desktop delivery; inspect local state first.
+aan --db ./email-first-demo.db --channels stdout --include-action emit --file examples/email-action.json
+aan --db ./email-first-demo.db status
+```
+
+For email delivery, configure SMTP and a real reply mailbox first, then run a
+worker and emit the event with `--channels email --include-action`. The full
+[email-first guide](docs/email-first.md) covers both sides of that setup,
+official login links, and `aan replies ingest --file message.eml` / `aan replies list`.
+
+Ordinary answers can stay in email when an authorized host supports them. Login
+credentials stay on the official site. Imported replies are **unverified pending
+input**: they never approve, execute, resolve a request, or resume an agent.
+A trusted host must authenticate the owner's intent and apply the original
+confirmation policy. Mandatory platform forms and handoffs still use their
+required surface; the tool does not force every interaction back to GPT.
 
 ## Report human input and truthful task state
 
@@ -196,8 +227,10 @@ safe review page. The link itself performs no action.
 
 `--include-summary` or `AAN_INCLUDE_SUMMARY=1` opts into summaries with conservative
 heuristic redaction. Redaction is **not a complete secret detector**. Avoid
-private text, commands, question contents, logs, or credentials even with it on.
-SQLite keeps redacted summaries and links locally, but this is not encryption.
+private text, commands, logs, or credentials even with it on. Reviewed ordinary
+questions belong in the separate opt-in `action`, not an unreviewed summary.
+SQLite keeps redacted summaries/actions and validated links locally, but this is
+not encryption. Imported reply text is also conservatively redacted.
 See [SECURITY.md](SECURITY.md).
 
 ## Delivery, retries, and honesty

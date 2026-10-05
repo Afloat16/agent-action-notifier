@@ -24,7 +24,8 @@ def drain(store: Store, *, env=None, limit: int = 100, max_attempts: int = 8,
         body = row["body"]
         if clock() - row["created_at"] > 300:
             body = "This notice was queued over 5 minutes ago. Recheck the original workflow's current state.\n" + body
-        notification = Notification(title=row["title"], body=body, message_id=row["message_id"])
+        notification = Notification(title=row["title"], body=body, message_id=row["message_id"],
+                                    reply_reference=row["reply_reference"], reply_revision=row["reply_revision"])
         stopped = threading.Event()
 
         def heartbeat(delivery_id=row["id"]):

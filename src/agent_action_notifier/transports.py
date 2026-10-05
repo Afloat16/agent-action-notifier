@@ -44,6 +44,7 @@ _ERROR_CODES = frozenset(
         "unsupported_channel",
         "invalid_notification",
         "invalid_email_configuration",
+        "email_reply_configuration_required",
         "smtp_authentication_failed",
         "smtp_tls_unavailable",
         "smtp_tls_verification_failed",
@@ -130,6 +131,8 @@ class Notification:
     title: str
     body: str
     message_id: str
+    reply_reference: str = ""
+    reply_revision: int = 0
 
 
 class DeliveryError(Exception):
@@ -154,6 +157,7 @@ class _EmailSettings:
     recipient: str = field(repr=False)
     username: str = field(repr=False)
     password: str = field(repr=False)
+    reply_to: str = field(repr=False)
 
 
 def _is_utf8(value: str) -> bool:
@@ -170,6 +174,12 @@ def _contains_controls(value: str, allowed: str = "") -> bool:
 
 def _validate_notification(notification: Notification) -> None:
     if not isinstance(notification, Notification):
+        raise DeliveryError("invalid_notification", retryable=False)
+    if (not isinstance(notification.reply_reference, str)
+            or type(notification.reply_revision) is not int
+            or (notification.reply_reference and (not re.fullmatch(r"[0-9a-f]{24}", notification.reply_reference)
+                                                   or notification.reply_revision < 1))
+            or (not notification.reply_reference and notification.reply_revision != 0)):
         raise DeliveryError("invalid_notification", retryable=False)
     if any(not isinstance(value, str) for value in (
         notification.title, notification.body, notification.message_id
@@ -228,6 +238,7 @@ def _email_settings(env: Mapping[str, str]) -> _EmailSettings:
     names = (
         "AAN_SMTP_HOST", "AAN_SMTP_PORT", "AAN_SMTP_SECURITY",
         "AAN_SMTP_USERNAME", "AAN_SMTP_PASSWORD", "AAN_SMTP_FROM", "AAN_SMTP_TO",
+        "AAN_SMTP_REPLY_TO",
     )
     defaults = {"AAN_SMTP_PORT": "465", "AAN_SMTP_SECURITY": "ssl"}
     values = {name: env.get(name, defaults.get(name, "")) for name in names}
@@ -240,6 +251,7 @@ def _email_settings(env: Mapping[str, str]) -> _EmailSettings:
     recipient = values["AAN_SMTP_TO"]
     username = values["AAN_SMTP_USERNAME"]
     password = values["AAN_SMTP_PASSWORD"]
+    reply_to = values["AAN_SMTP_REPLY_TO"]
     credentials_supplied = "AAN_SMTP_USERNAME" in env or "AAN_SMTP_PASSWORD" in env
     if (
         not _is_host(host)
@@ -250,6 +262,7 @@ def _email_settings(env: Mapping[str, str]) -> _EmailSettings:
         or security not in {"ssl", "starttls"}
         or not _is_mailbox(sender)
         or not _is_mailbox(recipient)
+        or ("AAN_SMTP_REPLY_TO" in env and not _is_mailbox(reply_to))
         or (credentials_supplied and (not username or not password))
         or not username.isascii()
         or not password.isascii()
@@ -257,7 +270,13 @@ def _email_settings(env: Mapping[str, str]) -> _EmailSettings:
         or _contains_controls(password)
     ):
         raise DeliveryError("invalid_email_configuration", retryable=False)
-    return _EmailSettings(host, int(port_text), security, sender, recipient, username, password)
+    return _EmailSettings(host, int(port_text), security, sender, recipient, username, password, reply_to)
+
+
+def email_message_id(message_id: str) -> str:
+    """The exact stable wire identity; this is correlation, not authentication."""
+    digest = hashlib.sha256(message_id.encode("utf-8")).hexdigest()
+    return f"<aan.{digest}@agent-action-notifier.invalid>"
 
 
 def _response_retryable(code: object) -> bool:
@@ -320,6 +339,8 @@ def _close_smtp(client: smtplib.SMTP | None) -> None:
 
 def _deliver_email(notification: Notification, env: Mapping[str, str]) -> str:
     settings = _email_settings(env)
+    if notification.reply_reference and not settings.reply_to:
+        raise DeliveryError("email_reply_configuration_required", retryable=False)
     client = None
     failure = None
     phase = "connect"
@@ -328,10 +349,14 @@ def _deliver_email(notification: Notification, env: Mapping[str, str]) -> str:
         message["Subject"] = notification.title
         message["From"] = Address(addr_spec=settings.sender)
         message["To"] = Address(addr_spec=settings.recipient)
-        digest = hashlib.sha256(notification.message_id.encode("utf-8")).hexdigest()
-        message["Message-ID"] = f"<aan.{digest}@agent-action-notifier.invalid>"
+        message["Message-ID"] = email_message_id(notification.message_id)
         message["Date"] = formatdate(localtime=False, usegmt=True)
         message["Auto-Submitted"] = "auto-generated"
+        if settings.reply_to:
+            message["Reply-To"] = Address(addr_spec=settings.reply_to)
+        if notification.reply_reference:
+            message["X-AAN-Request-Reference"] = notification.reply_reference
+            message["X-AAN-Request-Revision"] = str(notification.reply_revision)
         message.set_content(notification.body, subtype="plain", charset="utf-8", cte="quoted-printable")
         context = ssl.create_default_context()
         if settings.security == "ssl":

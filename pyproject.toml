@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-action-notifier"
-version = "0.1.0"
-description = "Durable notification-only human-input alerts for agent workflows"
+version = "0.2.0"
+description = "Durable email-first workflow alerts and unverified reply review"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

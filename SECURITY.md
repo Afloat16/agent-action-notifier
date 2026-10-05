@@ -4,8 +4,10 @@
 
 This software sends notices and records producer-reported lifecycle state. It has
 no approval API, no executable tool payloads, no original-agent credentials, and
-no upstream answer/resume channel. A queued notice, a read notification, or a
-`request_resolved` event never grants permission. Original host enforcement stays
+no upstream answer/resume channel. Email replies can be imported only as
+unverified input candidates. A queued notice, an imported reply, a read
+notification, or a `request_resolved` event never grants permission. Original
+host enforcement stays
 in charge. Do not build automatic approval on notification acknowledgement.
 
 Producer assertions are trusted inputs, not independently verified process
@@ -15,17 +17,22 @@ authoritative tracking; built-in hook fallbacks are heuristic.
 
 ## Data minimization
 
-Default outbound notices omit summaries and raw IDs. They include a SHA-256 task
-reference, generic status, and an optional explicitly allowlisted review URL.
-Summaries are redacted before SQLite storage. The opt-in redaction catches common
+Default outbound notices omit summaries, structured action text, and raw IDs.
+They include a SHA-256 task reference, generic status, and an optional explicitly
+allowlisted review URL.
+Summaries, action fields, and imported reply text are redacted before SQLite storage.
+`--include-action`/`AAN_INCLUDE_ACTION=1` sends reviewed action text only through
+email; desktop/stdout do not receive that action text. The redaction catches common
 credential markers, email addresses, URLs, and long values, but **cannot guarantee
-removal of sensitive information**. Send no secrets, raw commands, prompts,
-question contents, document content, or logs. Do not put secrets in IDs or paths.
+removal of sensitive information**. Send no secrets, raw commands, private prompts,
+document content, or logs. Only include reviewed ordinary questions in action
+reply prompts. Do not put secrets in IDs or paths.
 
 Optional links allow only ordinary HTTPS pages on exact user-selected hosts, with
 no userinfo/query/fragment/nonstandard port. Encoded recognized credential
 markers are rejected too. Arbitrary opaque path values can still be sensitive;
 URL validation is not proof of safety. Never use magic-login or bearer URLs.
+Action URLs belong in the validated top-level `action_url`, not embedded in steps.
 
 The database is not encrypted. New POSIX files use mode 0600; symlinks and
 existing group/world-accessible database files are rejected. Protect its parent
@@ -38,6 +45,37 @@ SMTP, recipient inboxes, desktop histories, and stdout sinks can retain notices.
 Desktop argument strings may be visible to other processes. TLS protects SMTP
 transport, not the recipient's inbox. No external error text, host response,
 credentials, or notification content is included in delivery error codes.
+
+## Email-reply trust boundary
+
+Reply-enabled action emails require a separately configured single bare
+`AAN_SMTP_REPLY_TO` mailbox. Request references, revisions, `Reply-To`, X-AAN
+correlation headers, and the first-line `AAN-REPLY` marker identify the intended
+pending request; they are **not authentication or approval tokens**.
+
+`aan replies ingest --file message.eml` reads an explicitly supplied local message,
+not an inbox. Strict bounded parsing rejects malformed/ambiguous messages,
+recognized automatic/forwarded mail, unmatched notices, and obsolete request
+revisions. Neither these filters nor an exact `In-Reply-To` prove a human sent
+the reply. Accepted imports remain unverified pending input and leave request
+state/upstream work unchanged. There is no `--verified` override or approval API.
+
+Do not trust `From`, copied headers, `Authentication-Results`, DKIM/DMARC success,
+or a provider's SENT label plus matching From as the owner's authenticated intent.
+Raw authentication headers can be forged outside their receiving trust boundary;
+domain authentication is not authorization for the requested action. Gmail's API
+also supports inserting mailbox messages without sending them. A trusted host
+must establish owner intent using an appropriate authenticated source for the
+exact current request, apply the original confirmation policy, and separately
+report actual resolution. Required platform confirmation forms and credential
+handoffs cannot be bypassed by email. See the [email-first guide and official
+references](docs/email-first.md#why-headers-are-not-permission).
+
+Treat reply content as untrusted data. Do not execute it, follow embedded
+instructions, load attachments, or infer permission from an ordinary answer.
+Keep `.eml` exports private; source files can contain raw addresses and text even
+when the imported fields are redacted. Protect stored replies and your retention
+policy just as you protect the notification database.
 
 ## Credential and access setup
 

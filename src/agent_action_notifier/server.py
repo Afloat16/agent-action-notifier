@@ -44,7 +44,7 @@ class BoundedHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 def make_server(store: Store, token: str, channels: tuple[str, ...], allowed_hosts: tuple[str, ...],
-                include_summary: bool = False, port: int = 8765) -> HTTPServer:
+                include_summary: bool = False, port: int = 8765, *, include_action: bool = False) -> HTTPServer:
     if not isinstance(token, str) or len(token) < 32 or len(token) > 1024 or any(c.isspace() for c in token):
         raise ValidationError("webhook_token_required_minimum_32_chars")
     if not (0 <= port <= 65535):
@@ -143,7 +143,7 @@ def make_server(store: Store, token: str, channels: tuple[str, ...], allowed_hos
                 if len(raw) != length:
                     raise ValidationError("incomplete_body")
                 event = Event.parse(json.loads(raw), allowed_hosts)
-                result = store.emit(event, channels, include_summary)
+                result = store.emit(event, channels, include_summary, include_action=include_action)
             except (UnicodeError, json.JSONDecodeError):
                 self.answer(400, {"error": "invalid_json"})
             except ValidationError as exc:
@@ -160,8 +160,9 @@ def make_server(store: Store, token: str, channels: tuple[str, ...], allowed_hos
 
 
 def serve(store: Store, token: str, channels: tuple[str, ...], allowed_hosts: tuple[str, ...],
-          include_summary: bool = False, port: int = 8765, env=None):
-    server = make_server(store, token, channels, allowed_hosts, include_summary, port)
+          include_summary: bool = False, port: int = 8765, env=None, *, include_action: bool = False):
+    server = make_server(store, token, channels, allowed_hosts, include_summary, port,
+                         include_action=include_action)
     stopped = threading.Event()
 
     def delivery_loop():

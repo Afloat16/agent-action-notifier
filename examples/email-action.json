@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "event_id": "email-example:format-needed",
+  "task_id": "email-example",
+  "type": "human_input_required",
+  "request_id": "report-format",
+  "status": "waiting",
+  "independent_work": false,
+  "action": {
+    "kind": "question",
+    "steps": [
+      "Choose PDF or DOCX for the final report.",
+      "Use Reply on this notice and copy its AAN-REPLY marker onto the first line.",
+      "Put your format choice on the next line. Do not include private documents or credentials."
+    ],
+    "reply_prompt": "Reply with PDF or DOCX below the first-line marker.",
+    "completion_hint": "A trusted host checks the owner's choice and reports the resulting workflow state."
+  }
+}
