@@ -52,7 +52,7 @@ def output(payload: dict, stream=None):
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Notify humans without approving or resuming agent actions.")
     parser.add_argument("--version", action="version", version=__version__)
-    parser.add_argument("--db", default=os.environ.get("AAN_DB", default_database()), help="SQLite state file")
+    parser.add_argument("--db", default=os.environ.get("AAN_DB"), help="SQLite state file")
     parser.add_argument("--channels", default=os.environ.get("AAN_CHANNELS", "stdout"), help="email,desktop,stdout")
     parser.add_argument("--action-host", action="append", default=[], help="exact allowed HTTPS review host; repeatable")
     parser.add_argument("--include-summary", action="store_true", default=os.environ.get("AAN_INCLUDE_SUMMARY") == "1",
@@ -116,7 +116,9 @@ def main(argv=None) -> int:
         channels = parse_channels(args.channels)
         env_hosts = [x.strip().lower() for x in os.environ.get("AAN_ACTION_HOSTS", "").split(",") if x.strip()]
         hosts = tuple(dict.fromkeys(env_hosts + [x.lower() for x in args.action_host]))
-        store = Store(args.db)
+        # Do not require a home directory when an explicit path is supplied
+        # (notably headless/isolated Windows processes).
+        store = Store(args.db or default_database())
         if args.command == "emit":
             event = Event.parse(read_json(args.file), hosts)
             result = store.emit(event, channels, args.include_summary, include_action=args.include_action)

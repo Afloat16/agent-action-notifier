@@ -1,7 +1,7 @@
 """Synthetic email-first regressions; no SMTP or real inbox is contacted."""
 
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import closing, redirect_stderr, redirect_stdout
 from email.message import EmailMessage
 import hashlib
 import io
@@ -301,6 +301,11 @@ class EmailFirstStoreTests(unittest.TestCase):
         self.assertNotIn("private-password", stderr.getvalue())
         self.assertEqual(self.store.list_replies()["replies"], [])
 
+    def test_explicit_database_does_not_require_home_directory(self):
+        with redirect_stdout(io.StringIO()), patch("agent_action_notifier.cli.default_database",
+                                                   side_effect=RuntimeError("no home directory")):
+            self.assertEqual(main(["--db", str(self.path), "status"]), 0)
+
 
 class ReplyParserTests(unittest.TestCase):
     notice = {"reply_reference": "a" * 24, "reply_revision": 1,
@@ -441,7 +446,7 @@ class MigrationTests(unittest.TestCase):
             event = Event.parse({"version": 1, "event_id": "old", "task_id": "t",
                                  "type": "human_input_required", "request_id": "r"}, ())
             digest = hashlib.sha256(json.dumps(event.dictionary(), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-            with sqlite3.connect(path) as conn:
+            with closing(sqlite3.connect(path)) as conn:
                 conn.executescript("""
                 CREATE TABLE events (event_id TEXT PRIMARY KEY, digest TEXT NOT NULL, received_at REAL NOT NULL);
                 CREATE TABLE tasks (task_id TEXT PRIMARY KEY, status TEXT NOT NULL, independent_work INTEGER NOT NULL,
@@ -461,6 +466,7 @@ class MigrationTests(unittest.TestCase):
                 PRAGMA user_version = 1;
                 """)
                 conn.execute("INSERT INTO events VALUES (?,?,?)", ("old", digest, 100))
+                conn.commit()
             store = Store(path)
             self.assertTrue(store.emit(event, ("email",), now=101)["duplicate"])
             snapshot = store.snapshot(now=102)
