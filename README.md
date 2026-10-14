@@ -41,7 +41,7 @@ See the [integration contract](docs/integrations.md).
 ## Try it safely, without email or credentials
 
 If a downloadable `agent-action-notifier.pyz` is available in this repository's
-GitHub Releases, use it; otherwise build from source using Python alone:
+[GitHub Releases](https://github.com/Afloat16/agent-action-notifier/releases), use it; otherwise build from source using Python alone:
 
 ```sh
 git clone https://github.com/Afloat16/agent-action-notifier.git
@@ -88,6 +88,23 @@ It polls due outbox entries approximately once per second. It survives queued
 work across restarts; it does not run while the computer/process is stopped.
 Hooks only enqueue and return, so SMTP or desktop failures cannot make a hook
 grant permission or hold up the agent's approval UI.
+
+## Command reference
+
+| Command | Purpose |
+| :--- | :--- |
+| `aan demo` | Try a synthetic workflow using a temporary database and stdout |
+| `aan emit --file EVENT.json` | Ingest a canonical event; omit `--file` to read stdin |
+| `aan worker --watch` | Deliver due notifications in a foreground process |
+| `aan status` | Inspect task state, pending requests, stale reports, and delivery errors |
+| `aan retry-dead` | Requeue still-relevant dead deliveries after correcting their cause |
+| `aan hook codex` / `aan hook claude` | Enqueue supported command-hook events |
+| `aan serve` | Run the authenticated loopback webhook with a delivery worker |
+| `aan replies ingest --file message.eml` / `aan replies list` | Import and inspect unverified email input |
+
+Global options such as `--db`, `--channels`, and `--include-action` go **before**
+the subcommand: `aan --db ./private-state.db --channels stdout emit --file examples/input-required.json`.
+Use `aan --help` or a subcommand's help, such as `aan emit --help`, for syntax.
 
 ## Enable email and/or desktop deliberately
 
@@ -276,3 +293,13 @@ Claude, or ChatGPT. Review [CONTRIBUTING.md](CONTRIBUTING.md) before contributin
 This is an independent community tool, not an official OpenAI or Anthropic
 integration. External host APIs can change; review the date-checked official
 sources linked in the integration guide.
+
+## License
+
+[MIT](LICENSE). Copyright 2026 Afloat16.
+
+[Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+
+## Related projects
+
+See the [Afloat16 project guide](https://github.com/Afloat16/research-to-fix/blob/main/docs/PROJECTS.md) for requirements debate, evidence-driven debugging, task checks, endpoint diagnostics, notifications, MCP advice, and local reconstruction.

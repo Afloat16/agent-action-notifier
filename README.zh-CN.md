@@ -16,7 +16,7 @@ Python 3.10+ · MIT · 无第三方运行时依赖 · 0.2.0
 
 ## 无账号、无邮件的体验
 
-如果 GitHub Releases 中已有 agent-action-notifier.pyz，可直接下载；否则从源码构建：
+如果 [GitHub Releases](https://github.com/Afloat16/agent-action-notifier/releases) 中已有 `agent-action-notifier.pyz`，可直接下载；否则从源码构建：
 
 ```sh
 git clone https://github.com/Afloat16/agent-action-notifier.git
@@ -28,8 +28,16 @@ python dist/agent-action-notifier.pyz demo
 演示只使用临时数据库和终端输出，不连接邮箱、不弹真实桌面通知、不操作智能体。
 演示依次显示：等待人工参与，同时有独立工作 → 重复事件去重 → 请求解除，但是否恢复仍未知 → 工作流明确上报完成。
 
-在虚拟环境中运行 python -m pip install . 可安装 aan 命令。
-pip 可能下载构建依赖；直接构建 .pyz 只需 Python 标准库。本项目未宣称发布到 PyPI。
+需要较短的 `aan` 命令时，在虚拟环境中从当前源码目录安装：
+
+```sh
+python -m venv .venv
+# 按操作系统通常的方式激活 .venv，然后运行：
+python -m pip install .
+aan --version
+```
+
+安装时可能下载构建依赖；直接构建 `.pyz` 只需 Python 标准库。本项目未宣称发布到 PyPI。
 
 ## 最小可用流程
 
@@ -49,6 +57,23 @@ aan --db ./private-state.db worker --watch
 
 它大约每秒检查一次待发送队列。队列在重启后保留，但电脑关机、休眠或进程停止时不能发送。
 Hook 只快速入队，不等待邮件发送，更不会向上游返回允许执行的决定。
+
+## 命令一览
+
+| 命令 | 用途 |
+| :--- | :--- |
+| `aan demo` | 用临时数据库和终端输出体验合成流程 |
+| `aan emit --file EVENT.json` | 接收标准事件；省略 `--file` 时读取标准输入 |
+| `aan worker --watch` | 在前台持续发送到期通知 |
+| `aan status` | 检查任务状态、待处理请求、过期报告和发送错误 |
+| `aan retry-dead` | 修正失败原因后，重排仍有效的失败通知 |
+| `aan hook codex` / `aan hook claude` | 将支持的命令 Hook 事件入队 |
+| `aan serve` | 运行认证后的本机回环 Webhook 和发送进程 |
+| `aan replies ingest --file message.eml` / `aan replies list` | 导入和查看未经验证的邮件输入 |
+
+`--db`、`--channels`、`--include-action` 等全局选项放在**子命令之前**：
+`aan --db ./private-state.db --channels stdout emit --file examples/input-required.json`。
+完整语法见 `aan --help` 或子命令帮助，例如 `aan emit --help`。
 
 ## 启用邮件和桌面渠道
 
@@ -151,3 +176,13 @@ python dist/agent-action-notifier.pyz demo
 
 邮件及桌面测试使用模拟接口，Webhook 使用真实本机 HTTP；没有宣称已验证你的邮箱、电脑或实时智能体。
 此工具由社区独立提供，不是 OpenAI 或 Anthropic 官方产品。
+
+## 许可证
+
+[MIT](LICENSE)，Copyright 2026 Afloat16。
+
+[贡献指南](CONTRIBUTING.md) · [更新记录](CHANGELOG.md)
+
+## 相关开源项目
+
+按用途浏览 [Afloat16 项目导航](https://github.com/Afloat16/research-to-fix/blob/main/docs/PROJECTS.md)，选择需求论证、调研修复、任务验收、接口诊断、通知、MCP 建议或本地重建工具。
