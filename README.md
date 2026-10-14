@@ -2,7 +2,7 @@
 
 **Know when an agent needs you, without watching its conversation.**
 
-[简体中文](README.zh-CN.md) · [Email-first setup](docs/email-first.md) · [Agent integrations](docs/integrations.md) ·
+**English** · [简体中文](README.zh-CN.md) · [Email-first setup](docs/email-first.md) · [Agent integrations](docs/integrations.md) ·
 [Desktop limitations](docs/desktop.md) · [Security](SECURITY.md)
 
 Python 3.10+ · MIT · No third-party runtime dependencies · Version 0.2.0
@@ -302,4 +302,5 @@ sources linked in the integration guide.
 
 ## Related projects
 
-See the [Afloat16 project guide](https://github.com/Afloat16/research-to-fix/blob/main/docs/PROJECTS.md) for requirements debate, evidence-driven debugging, task checks, endpoint diagnostics, notifications, MCP advice, and local reconstruction.
+See the [Afloat16 project guide](https://github.com/Afloat16/research-to-fix/blob/main/docs/PROJECTS.md) for robotics diagnostics, model interfaces, 3D geometry, research and engineering workflows.
+
